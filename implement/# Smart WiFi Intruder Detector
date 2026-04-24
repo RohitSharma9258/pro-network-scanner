@@ -1,0 +1,38 @@
+# Smart WiFi Intruder Detector
+
+A Python-based tool to scan your local network, identify connected devices, and alert you when a new unknown device connects.
+
+## Features
+- **Network Scanning**: Uses ARP requests to discover devices.
+- **Device Identification**: Resolves MAC addresses to Vendor names.
+- **Alert System**: Visual and audible alerts for new devices.
+- **Terminal UI**: Beautiful dashboard using `rich`.
+
+## Requirements
+- Python 3.x
+- `scapy`, `rich`, `requests`, `mac-vendor-lookup`
+- **Admin/Root Privileges**: Required for Scapy to send packets.
+
+## Installation
+1. Clone the repository or download the files.
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+## Usage
+Run the application with Administrator privileges:
+
+### Windows (PowerShell as Admin)
+```powershell
+python main.py
+```
+
+### Linux / macOS (sudo)
+```bash
+sudo python3 main.py
+```
+
+## Configuration
+- Known devices are stored in `known_devices.json`.
+- Logs are saved to `detector.log`.

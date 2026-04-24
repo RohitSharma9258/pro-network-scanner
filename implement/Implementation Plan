@@ -1,0 +1,37 @@
+Implementation Plan - Smart WiFi Intruder Detector
+Goal Description
+Create a Python-based Smart WiFi Intruder Detector that scans the local network, identifies connected devices, manages a list of known devices, and alerts the user when a new (unknown) device connects.
+
+User Review Required
+NOTE
+
+This tool requires administrative privileges (root/admin) to perform network scanning using Scapy.
+
+Proposed Changes
+Core Logic
+[NEW] 
+network_scanner.py
+Uses scapy to send ARP requests.
+Returns a list of active devices (IP, MAC).
+[NEW] 
+device_manager.py
+Manages known devices (storage in JSON/CSV).
+Identifies device vendors using MAC addresses.
+Checks for new devices.
+[NEW] 
+alert_system.py
+Handles notifications (console, system sound, or potential email/webhook integration).
+User Interface
+[NEW] 
+ui_manager.py
+Uses rich library for a beautiful terminal UI.
+Displays active scan results and alerts.
+Entry Point
+[NEW] 
+main.py
+orchestrates the components.
+Verification Plan
+Manual Verification
+Run python main.py (as admin).
+Verify that known devices are listed.
+Verify that a new device (e.g., phone toggling WiFi) triggers an alert.

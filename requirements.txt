@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pydantic
+aiohttp
+tqdm
+bcrypt
+python-dotenv
+pyjwt
+passlib[bcrypt]
+pytest
+pytest-asyncio
+pydantic-settings
+jinja2
