@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Vanguard Titan v11.0 (Cyber Intelligence Suite)
 
 Vanguard Titan is a high-performance, asynchronous reconnaissance engine designed for enterprise-grade security auditing and network intelligence.
@@ -31,3 +32,7 @@ python port.scanner.py 192.168.1.0/24 --web
 
 ## 📄 License
 This tool is for educational purposes only. Unauthorized use is prohibited.
+=======
+# pro-network-scanner
+“Advanced asynchronous port scanner with API, JWT authentication, banner grabbing, and service detection.”
+>>>>>>> e41bfb3217abf8b924aa45569dcccb2e58c48967
