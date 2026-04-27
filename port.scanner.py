@@ -31,9 +31,9 @@ BANNER = r"""\033[1;36m
 """
 
 SCAN_PROFILES = {
-    "stealth": {"workers": 5, "delay": 2.0, "timeout": 3.0, "retries": 3},
-    "fast": {"workers": 500, "delay": 0.0, "timeout": 0.5, "retries": 1},
-    "full": {"workers": 100, "delay": 0.1, "timeout": 1.5, "retries": 2}
+    "stealth": {"workers": 10,  "delay": 1.5, "timeout": 2.0, "retries": 3},
+    "fast":    {"workers": 1000, "delay": 0.0, "timeout": 0.4, "retries": 1},
+    "full":    {"workers": 500,  "delay": 0.0, "timeout": 0.7, "retries": 2}
 }
 
 async def shutdown(stop_event, db=None, srv=None):
@@ -44,9 +44,21 @@ async def shutdown(stop_event, db=None, srv=None):
     logger.info("System halted.")
 
 def setup_args():
-    parser = argparse.ArgumentParser(description="Vanguard Titan v12.5 - Enterprise Recon Suite")
-    parser.add_argument("target", nargs="?", help="IP, CIDR, or Domain")
-    parser.add_argument("-p", "--ports", default="1-1024", help="Port range")
+    parser = argparse.ArgumentParser(
+        description="Vanguard Titan v12.5 - Enterprise Recon Suite",
+        epilog="""Multi-Target Examples:
+  %(prog)s 192.168.1.1,192.168.1.2,10.0.0.1
+  %(prog)s 192.168.1.1-192.168.1.50
+  %(prog)s 192.168.1.1-50
+  %(prog)s 192.168.1.0/24
+  %(prog)s @targets.txt
+  %(prog)s 192.168.1.1,10.0.0.0/24,example.com""",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("target", nargs="?", help="Target(s): IP, CIDR, range, comma-separated, or @file.txt")
+    parser.add_argument("-t", "--targets", nargs="+", help="Multiple targets (space-separated)")
+    parser.add_argument("-tL", "--target-list", help="File with targets (one per line)")
+    parser.add_argument("-p", "--ports", default="1-10000", help="Port range (default: 1-10000)")
     parser.add_argument("--top", type=int, help="Scan top X ports")
     parser.add_argument("--profile", choices=SCAN_PROFILES.keys(), help="Scan profile")
     parser.add_argument("--web", action="store_true", help="Start JWT-Hardened API")
@@ -70,10 +82,39 @@ async def main():
     if not os.getenv("VANGUARD_SKIP_DISCLAIMER") and input("\033[1;31m[!] ACCEPT LEGAL TERMS? (y/n): \033[0m").lower() != 'y':
         return
 
-    target_str = args.target or input("\033[1;33m[?] Target: \033[0m").strip()
-    if not VanguardValidator.validate_target(target_str):
-        logger.error("Invalid target format.")
+    # Multi-Target Collection
+    raw_targets = []
+    if args.target:
+        raw_targets.append(args.target)
+    if args.targets:
+        raw_targets.extend(args.targets)
+    if args.target_list:
+        raw_targets.append(f"@{args.target_list}")
+    
+    if not raw_targets:
+        user_input = input("\033[1;33m[?] Target(s) [comma-separated, CIDR, range, or @file]: \033[0m").strip()
+        if not user_input:
+            logger.error("No targets provided.")
+            return
+        raw_targets.append(user_input)
+
+    # Parse & Validate all targets
+    targets = []
+    for raw in raw_targets:
+        parsed = VanguardValidator.validate_targets(raw)
+        if not parsed:
+            logger.warning(f"Invalid or empty target: {raw}")
+        targets.extend(parsed)
+    
+    # Deduplicate
+    seen = set()
+    targets = [t for t in targets if not (t in seen or seen.add(t))]
+
+    if not targets:
+        logger.error("No valid targets found.")
         return
+
+    print(f"\033[1;34m[*] Loaded {len(targets)} target(s) for scanning\033[0m")
 
     ports = VanguardValidator.get_top_ports(args.top) if args.top else VanguardValidator.sanitize_port(args.ports)
     
@@ -82,12 +123,6 @@ async def main():
     engine = VanguardEngine(ports, timeout=timeout, workers=workers, delay=delay, retries=retries)
     plugin_mgr = PluginManager()
     plugin_mgr.load_plugins()
-    
-    # Target Expansion
-    if "/" in target_str:
-        import ipaddress
-        targets = [str(ip) for ip in ipaddress.IPv4Network(target_str, strict=False)]
-    else: targets = [target_str]
 
     if args.resume:
         targets = [t for t in targets if not db.is_already_scanned(t)]
@@ -122,13 +157,52 @@ async def main():
         shared_state["results"] = results
 
     # Reporting
-    print("\n\033[1;35m[+] ENTERPRISE ANALYSIS:\033[0m")
+    print("\n\033[1;35m" + "=" * 70 + "\033[0m")
+    print("\033[1;35m[+] ENTERPRISE ANALYSIS REPORT\033[0m")
+    print("\033[1;35m" + "=" * 70 + "\033[0m")
+    
     for ip, info in results.items():
+        os_fp = info.get("os", "Unknown")
+        print(f"\n\033[1;36m╔══ TARGET: {ip} ({info['target']}) | OS: {os_fp} | {info.get('family', 'IPv4')}\033[0m")
+        
         if info["ports"]:
             db.save_batch(info, info["ports"])
-            print(f"\033[1;36m[+] {ip} ({info['target']})\033[0m")
             for p in info["ports"]:
-                print(f"    - \033[1;32m{p['port']}/tcp\033[0m {p['service']} {p.get('version', '')} [{p.get('os_hint', 'N/A')}]")
+                sev = p.get("severity", "Low")
+                sev_color = {"High": "1;31", "Medium": "1;33", "Low": "1;32"}.get(sev, "0")
+                
+                print(f"  \033[1;32m╠══ {p['port']}/tcp\033[0m  "
+                      f"Service: \033[1;37m{p['service']}\033[0m  "
+                      f"Version: \033[1;37m{p.get('version', 'N/A')}\033[0m  "
+                      f"OS: \033[1;37m{p.get('os_hint', 'N/A')}\033[0m  "
+                      f"Severity: \033[{sev_color}m{sev}\033[0m")
+                
+                # Banner
+                banner = p.get("banner", "")
+                if banner and banner != "Open":
+                    print(f"  ║   \033[0;90m Banner: {banner[:80]}\033[0m")
+                
+                # SSL Info
+                ssl_info = p.get("ssl", {})
+                if ssl_info:
+                    print(f"  ║   \033[1;34m🔒 SSL/TLS:\033[0m")
+                    print(f"  ║      Subject: {ssl_info.get('subject_cn', 'N/A')}")
+                    print(f"  ║      Issuer:  {ssl_info.get('issuer_cn', 'N/A')} ({ssl_info.get('issuer_org', 'N/A')})")
+                    print(f"  ║      Valid:   {ssl_info.get('not_before', '?')} → {ssl_info.get('not_after', '?')}")
+                    if ssl_info.get("protocol"):
+                        print(f"  ║      Proto:   {ssl_info.get('protocol', 'N/A')} | Cipher: {ssl_info.get('cipher', 'N/A')}")
+                
+                # CVE Info
+                cves = p.get("cves", [])
+                if cves:
+                    print(f"  ║   \033[1;31m⚠ CVEs Found ({len(cves)}):\033[0m")
+                    for cve in cves:
+                        cvss = cve.get("cvss", "N/A")
+                        print(f"  ║      \033[1;31m{cve.get('id', 'N/A')}\033[0m [CVSS: {cvss}] {cve.get('summary', '')[:60]}")
+        else:
+            print(f"  \033[0;90m╠══ No open ports found\033[0m")
+        
+        print(f"  \033[1;36m╚══ Scan completed at {info.get('timestamp', 'N/A')}\033[0m")
 
     if args.output:
         VanguardReporter.to_html(results, f"{args.output}.html") if args.format == "html" else None

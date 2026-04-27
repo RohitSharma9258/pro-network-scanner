@@ -20,14 +20,14 @@ class VanguardSettings(BaseSettings):
     BCRYPT_ROUNDS: int = 12
     
     # Scanner Defaults
-    DEFAULT_WORKERS: int = 100
-    DEFAULT_TIMEOUT: float = 1.0
+    DEFAULT_WORKERS: int = 500
+    DEFAULT_TIMEOUT: float = 0.7
     BANNER_TIMEOUT: float = 0.8
     DEFAULT_DELAY: float = 0.0
     MAX_RETRIES: int = 2
     
     # Global Concurrency Limit
-    GLOBAL_MAX_CONCURRENCY: int = 500
+    GLOBAL_MAX_CONCURRENCY: int = 1000
     
     # Database
     DATABASE_PATH: str = "scans.db"

@@ -54,6 +54,14 @@ class VanguardDatabase:
                      version TEXT, banner TEXT, severity TEXT,
                      UNIQUE(ip, target, port))""")
                 
+                # Migration: Add missing columns to existing tables
+                self._migrate_columns(conn, "results", {
+                    "family": "TEXT DEFAULT 'IPv4'",
+                    "version": "TEXT DEFAULT 'N/A'",
+                    "banner": "TEXT DEFAULT ''",
+                    "severity": "TEXT DEFAULT 'INFO'"
+                })
+                
                 conn.execute("""CREATE TABLE IF NOT EXISTS scan_sessions
                     (id INTEGER PRIMARY KEY, session_id TEXT, ip TEXT, completed_at TEXT,
                      UNIQUE(session_id, ip))""")
@@ -62,13 +70,24 @@ class VanguardDatabase:
                     (token TEXT PRIMARY KEY, revoked_at TEXT)""")
                 
                 conn.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT)")
-                conn.execute("INSERT OR IGNORE INTO metadata (key, value) VALUES ('version', '12.0')")
+                conn.execute("INSERT OR IGNORE INTO metadata (key, value) VALUES ('version', '12.5')")
                 
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_ip ON results(ip)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_time ON results(timestamp)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_session ON scan_sessions(session_id, ip)")
         except sqlite3.Error as e:
             logger.error(f"DB Setup Failed: {e}")
+
+    def _migrate_columns(self, conn, table, columns):
+        """Auto-migrate: Add any missing columns to an existing table."""
+        try:
+            existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            for col_name, col_def in columns.items():
+                if col_name not in existing:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}")
+                    logger.info(f"Migration: Added column '{col_name}' to '{table}'")
+        except sqlite3.Error as e:
+            logger.error(f"Migration failed for {table}: {e}")
 
     async def _background_writer(self):
         """Processes the queue in batches with crash recovery."""

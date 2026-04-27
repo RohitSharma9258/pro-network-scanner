@@ -11,3 +11,4 @@ pytest
 pytest-asyncio
 pydantic-settings
 jinja2
+requests
