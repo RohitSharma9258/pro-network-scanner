@@ -32,6 +32,7 @@ python port.scanner.py 192.168.1.0/24 --web
 
 🔐 Credentials (Dev Only)
 Username: admin
+
 Password: vanguard123
 📄 License
 
